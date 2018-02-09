@@ -254,11 +254,9 @@ class DynamicTree( JTree ) :
         #-----------------------------------------------------------------------
         if arg_root == None:
             root = DefaultMutableTreeNode( 'Root Node' )
-            for name in 'Parent 1,Parent 2'.split( ',' ) :
-                here = DefaultMutableTreeNode( name )
-                for child in 'Child 1,Child 2'.split( ',' ) :
-                    here.add( DefaultMutableTreeNode( child ) )
-                root.add( here )
+            here = DefaultMutableTreeNode( 'Parent' )
+            here.add( DefaultMutableTreeNode( 'child' ) )
+            root.add( here )
         else:
             root = arg_root
         #-----------------------------------------------------------------------
@@ -349,7 +347,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     # Search terms in cookie names
     cookie_keywords = 'session|password|customer|token|service'
 
-    # Toggle extension use
+    # Toggle extension start/stop use
     _ss_button = None
 
     _tree = None
@@ -358,6 +356,20 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     #
     # implement IBurpExtender
     #
+
+    def refresh_tree(self, event):
+        # Add hosts to tree view
+        # This is very inefficient code for jtree. Model events should
+        # be used to auto update the tree. Couldn't figure out how to do it.
+        root = DefaultMutableTreeNode( self.fqdn_txt_field.getText() )
+
+        for host in self.hosts_dic:
+            host_branch = DefaultMutableTreeNode(host)
+            for url in self.hosts_dic[host]['path'].keys():
+                host_branch.add( DefaultMutableTreeNode( url ) )
+            root.add( host_branch )
+        self._tree.newTree(root)
+
 
     def reset_logger(self, event):
         # clear fqdn textbox
@@ -398,7 +410,15 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self._tree = DynamicTree()
         self._tree.run()
 
+        # refresh button
+        refresh_tree_button = JButton('Refresh', actionPerformed=self.refresh_tree)
+
         tree_pane = JScrollPane(self._tree)
+
+        tree_top_pane = JPanel()
+        tree_top_pane.add(refresh_tree_button)
+
+        self._tree_splitpane = JSplitPane(JSplitPane.VERTICAL_SPLIT, tree_top_pane, tree_pane)
 
         # debug output
         self._debug_textarea = JTextArea()
@@ -421,7 +441,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         scrollPane = JScrollPane(logTable)
 
         # textbox
-        self.fqdn_txt_field = JTextField('Type fqdn to start tracing',15)
+        self.fqdn_txt_field = JTextField('Type fqdn to start tracing',25)
         pnl = JPanel()
         pnl.add(self._ss_button)
         pnl.add(self.fqdn_txt_field)
@@ -443,7 +463,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         # customize our UI components
         self._main_tabs.addTab("Logs", self._splitpane)
         self._main_tabs.addTab("Debug", debug_scroll_pane)
-        self._main_tabs.addTab("Tree view", tree_pane)
+        self._main_tabs.addTab("Tree view", self._tree_splitpane)
 
         callbacks.customizeUiComponent(self._main_tabs)
         callbacks.customizeUiComponent(self._debug_textarea)
@@ -451,6 +471,9 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         callbacks.customizeUiComponent(logTable)
         callbacks.customizeUiComponent(scrollPane)
         callbacks.customizeUiComponent(rr_tabs)
+        callbacks.customizeUiComponent(self._tree_splitpane)
+        callbacks.customizeUiComponent(self._tree)
+        callbacks.customizeUiComponent(logTable)
 
         # add the custom tab to Burp's UI
         callbacks.addSuiteTab(self)
@@ -768,18 +791,6 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
                 # Update debug textarea
                 self._debug_textarea.text = 'Discovered hosts\n'
                 self._debug_textarea.text += json.dumps(self.hosts_dic, indent=4, sort_keys=True)
-
-                # Add hosts to tree view
-                # This is very inefficient code for jtree. Model events should
-                # be used to auto update the tree. Couldn't figure out how to do it.
-                root = DefaultMutableTreeNode( self.fqdn_txt_field.getText() )
-
-                for host in self.hosts_dic:
-                    host_branch = DefaultMutableTreeNode(host)
-                    for url in self.hosts_dic[host]['path'].keys():
-                        host_branch.add( DefaultMutableTreeNode( url ) )
-                    root.add( host_branch )
-                self._tree.newTree(root)
 
 
     #
